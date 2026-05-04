@@ -1,12 +1,14 @@
 # arrays-with-gaps
 
-A Rust project exploring array-based alternatives to red-black trees with a performance-first baseline.
+A Rust project exploring array-based alternatives to red-black trees with a
+performance-first baseline.
 
 ## Goal
 
 - Build a baseline red-black tree implementation in Rust
 - Measure performance with `criterion`
-- Prepare the repo for future array-based alternatives such as gap arrays, packed-memory arrays, and cache-friendly implicit structures
+- Prepare the repo for future array-based alternatives such as gap arrays,
+  packed-memory arrays, and cache-friendly implicit structures
 
 ## Project structure
 
@@ -21,6 +23,7 @@ A Rust project exploring array-based alternatives to red-black trees with a perf
 - `cargo build`
 - `cargo test`
 - `cargo bench`
+- `deno fmt *.md` for formatting documentation.
 
 ## Next work
 
