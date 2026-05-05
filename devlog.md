@@ -1,5 +1,43 @@
 # Devlog
 
+## 2026-05-05
+
+### SOARB
+
+Started on the struct of arrays red-black tree structure, but landed at the
+following issue. When removing a node, a swap remove doesn't work because it
+changes the index of the last node, and the parent node then loses track of
+their children.
+
+- One solution: keep a parent vector, so parent nodes can be updated with the
+  new position. It requires an extra column of indices.
+- Another: keep a free list and reuse the free positions for future allocations.
+  Issue: when the node is free, the structure should not own the key and value
+  anymore, nor return them on request. Upside: slightly closer to what the
+  allocator must do for the original red-black-tree.
+
+### red black density
+
+Each layer doubles the number of elements in the tree. Perhaps this informs how
+arrays of gaps should work: red indices indicate fullness for subtrees,
+prompting rebalancing measures, possibly even resizing the entire structure.
+
+An array of 2^k nodes should have about 2^k/k gaps... this would means all
+subtrees at a depth of log(k)-log(log(k)) should have gaps. Count all the
+elements to decide whether resizing is needed
+`len <= capacity*(1 - 1 / log(capacity))`, and use one bit per index to track if
+subtrees are full, to deal with hammering.
+
+### generic benchmarks
+
+Yes, I copy and modify as well, but in this case I foresee modifications to the
+benchmark based on use.
+
+### first results
+
+The SOA version is slower, ca 40%. Obviously, neither has had many optimization
+attempts, and perhaps the solution to the issue I mentioned is no good.
+
 ## 2026-05-04
 
 - Added a baseline red-black tree implementation in `src/rb_tree.rs`.

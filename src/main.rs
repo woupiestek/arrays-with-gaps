@@ -1,4 +1,4 @@
-use arrays_with_gaps::RedBlackTree;
+use arrays_with_gaps::{Map, RedBlackTree};
 
 fn main() {
     let mut tree = RedBlackTree::new();

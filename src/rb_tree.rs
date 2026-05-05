@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use crate::Map;
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Color {
     Red,
@@ -33,28 +35,24 @@ pub struct RedBlackTree<K, V> {
     len: usize,
 }
 
-impl<K: Ord, V> RedBlackTree<K, V> {
-    pub fn new() -> Self {
-        Self { root: None, len: 0 }
-    }
-
-    pub fn len(&self) -> usize {
+impl<K: Ord, V> Map<K, V> for RedBlackTree<K, V> {
+    fn len(&self) -> usize {
         self.len
     }
 
-    pub fn is_empty(&self) -> bool {
+    fn is_empty(&self) -> bool {
         self.root.is_none()
     }
 
-    pub fn contains_key(&self, key: &K) -> bool {
+    fn contains_key(&self, key: &K) -> bool {
         self.get(key).is_some()
     }
 
-    pub fn get(&self, key: &K) -> Option<&V> {
+    fn get(&self, key: &K) -> Option<&V> {
         Self::get_node(&self.root, key)
     }
 
-    pub fn insert(&mut self, key: K, value: V) -> Option<V> {
+    fn insert(&mut self, key: K, value: V) -> Option<V> {
         let mut added = false;
         let (root, old_value) = Self::insert_node(self.root.take(), key, value, &mut added);
         self.root = root;
@@ -67,7 +65,7 @@ impl<K: Ord, V> RedBlackTree<K, V> {
         old_value
     }
 
-    pub fn remove(&mut self, key: &K) -> Option<V> {
+    fn remove(&mut self, key: &K) -> Option<V> {
         if self.root.is_none() {
             return None;
         }
@@ -91,6 +89,12 @@ impl<K: Ord, V> RedBlackTree<K, V> {
         }
 
         removed
+    }
+}
+
+impl<K: Ord, V> RedBlackTree<K, V> {
+    pub fn new() -> Self {
+        Self { root: None, len: 0 }
     }
 
     fn get_node<'a>(node: &'a Link<K, V>, key: &K) -> Option<&'a V> {
@@ -292,7 +296,7 @@ impl<K: Ord, V> RedBlackTree<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use super::RedBlackTree;
+    use super::{Map, RedBlackTree};
 
     #[test]
     fn tree_operations_work() {
