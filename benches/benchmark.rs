@@ -1,13 +1,12 @@
 use arrays_with_gaps::{Map, RedBlackTree, soarb_tree::SOARBTree};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
-const TEST_SIZE: usize = 500;
+const TEST_SIZE: usize = 2_000;
 
-// todo: do not use uniform distributions here!
+// do not use uniform distributions here, we want to see hammering!
+// lists that repeat test different behavior, as they don't require restructing of the trees
 fn make_shuffle(n: usize) -> Vec<i32> {
-    let mut keys: Vec<i32> = (0..n)
-        .flat_map(|i| vec![i as i32; n - i as usize])
-        .collect();
+    let mut keys: Vec<i32> = (0..n as i32).collect::<Vec<i32>>().repeat(2);
     let mut seed = 0x1234_5678u32;
     for i in (1..keys.len()).rev() {
         seed ^= seed << 13;
@@ -32,9 +31,7 @@ impl TestCase {
     }
 
     fn bench_insert_ordered(&self, c: &mut Criterion) {
-        let keys: Vec<i32> = (0..TEST_SIZE as i32)
-            .flat_map(|i| vec![i as i32; TEST_SIZE - i as usize])
-            .collect();
+        let keys: Vec<i32> = (0..TEST_SIZE as i32).collect::<Vec<i32>>().repeat(2);
         c.bench_function(&format!("{} insert ordered", self.name), |b| {
             b.iter(|| {
                 let mut tree = (self.factory)();

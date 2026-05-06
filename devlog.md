@@ -1,5 +1,34 @@
 # Devlog
 
+## 2026-05-06
+
+### switch to MaybeUninit
+
+Just like switching to u32, that should make a difference but did not.
+
+### couple of ideas
+
+For faster soarb: to avoid costs of Vec, introduce a dynamic array type, Which
+always behaves like an max length array of possibly invalid values.
+
+Note: I have no idea if this makes any sense. For all I know, I can keep working
+with `[MaybeUninit<T>]` and use slice copy to get all the dynamic behavior I
+want. ...or not use slice copy, but instead transfer the tree to improve cache
+locality somehow. What would actually work? Every node has three edges, so one
+loses out. Maybe alternatingly sacrifice left and right, in hopes of evening out
+the load.
+
+Yet another array backed tree: each node is an array of keys, of values and of
+subtrees. The key are kept sorted, and the subtrees have keys in the intervals.
+
+### benchmarking issues
+
+I was doing this for a bit fit memory allocator, so I try to get a benchmark
+where the distribution of values could be similar to that situation. The
+implementation used here has something else in mind, though: of equivalent
+elements, only one is kept. I am updating the benchmark based on these new
+insights. Different benchmarks show less dramatic difference in performance.
+
 ## 2026-05-05
 
 ### SOARB
