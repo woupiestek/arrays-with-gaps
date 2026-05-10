@@ -1,4 +1,4 @@
-use arrays_with_gaps::{Map, RedBlackTree, soarb_tree::SOARBTree};
+use arrays_with_gaps::{Map, RedBlackTree, arb_tree::ArrayRedBlackTree, soarb_tree::SOARBTree};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 const TEST_SIZE: usize = 2_000;
@@ -90,14 +90,22 @@ impl TestCase {
 
 fn criterion_benchmarks(c: &mut Criterion) {
     let rb_tree = TestCase::new("rb_tree".to_string(), || Box::new(RedBlackTree::new()));
+    let arb_tree = TestCase::new(
+        "arb_tree".to_string(),
+        || Box::new(ArrayRedBlackTree::new()),
+    );
     let soarb_tree = TestCase::new("soarb_tree".to_string(), || Box::new(SOARBTree::new()));
     rb_tree.bench_insert_ordered(c);
+    arb_tree.bench_insert_ordered(c);
     soarb_tree.bench_insert_ordered(c);
     rb_tree.bench_insert_random(c);
+    arb_tree.bench_insert_random(c);
     soarb_tree.bench_insert_random(c);
     rb_tree.bench_get_random(c);
+    arb_tree.bench_get_random(c);
     soarb_tree.bench_get_random(c);
     rb_tree.bench_remove_random(c);
+    arb_tree.bench_remove_random(c);
     soarb_tree.bench_remove_random(c);
 }
 

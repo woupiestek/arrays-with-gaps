@@ -1,5 +1,15 @@
 # Devlog
 
+## 2026-05-09
+
+### red black deletion
+
+Distiguish actual removal and detatching a node from the tree. If a node has two
+children, it should be _replaced_ by its successor. Either node can be deleted,
+I guess the question is whether moving keys and values is cheaper than moving
+parents and children. Thanks to the swap, the problem of rebalancing after
+delete reduce to the case where the node has one or two children.
+
 ## 2026-05-06
 
 ### switch to MaybeUninit
