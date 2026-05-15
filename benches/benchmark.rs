@@ -1,4 +1,6 @@
-use arrays_with_gaps::{Map, RedBlackTree, arb_tree::ArrayRedBlackTree, soarb_tree::SOARBTree};
+use arrays_with_gaps::{
+    Map, RedBlackTree, arb_tree::ArrayRedBlackTree, gap_array_1::GapArray1, soarb_tree::SOARBTree,
+};
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
 const TEST_SIZE: usize = 2_000;
@@ -95,18 +97,23 @@ fn criterion_benchmarks(c: &mut Criterion) {
         || Box::new(ArrayRedBlackTree::new()),
     );
     let soarb_tree = TestCase::new("soarb_tree".to_string(), || Box::new(SOARBTree::new()));
+    let gap_array_1 = TestCase::new("gap_array_1".to_string(), || Box::new(GapArray1::new()));
     rb_tree.bench_insert_ordered(c);
     arb_tree.bench_insert_ordered(c);
     soarb_tree.bench_insert_ordered(c);
+    gap_array_1.bench_insert_ordered(c);
     rb_tree.bench_insert_random(c);
     arb_tree.bench_insert_random(c);
     soarb_tree.bench_insert_random(c);
+    gap_array_1.bench_insert_random(c);
     rb_tree.bench_get_random(c);
     arb_tree.bench_get_random(c);
     soarb_tree.bench_get_random(c);
+    gap_array_1.bench_get_random(c);
     rb_tree.bench_remove_random(c);
     arb_tree.bench_remove_random(c);
     soarb_tree.bench_remove_random(c);
+    gap_array_1.bench_remove_random(c);
 }
 
 criterion_group!(benches, criterion_benchmarks);

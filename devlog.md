@@ -1,5 +1,195 @@
 # Devlog
 
+## 2026-05-16
+
+### reflections
+
+I had hoped this would be simpler somehow.
+
+What I have is a packed memory array, but instead of keeping updates locally, it
+can only works through the whole array. It does have a solution for sparcity.
+
+### managing gaps and set segment tree.
+
+To speed up skipping bigger gaps,
+
+Let gaps point to either other gaps or to the back of the array? How does this
+interact with binary search? It seems better to point down to the least gap, _if
+in range_! Because those ranges are the trick.
+
+- On delete: create a gap, and merge it with the gap right below if there is
+  one. Note the range rules! Don't forget to merge any gap above it as well,
+  though! i.e. the range rule is that no gap can point down further than a
+  position with more trailing ones.
+- On insert: one can use the rules to alwasy fill gaps from the start, or to
+  split a gaps in two. Inserting at the end would save work, but finding the end
+  is work. Either way, there are up to log N gaps now pointing to the wrong
+  element, and they will be updated. to be specific, the direct left neighbour,
+  and all the gaps with more trailing ones above if they were part of the same
+  gap.
+
+Changes compared to what I have now:
+
+1. point to a gap: consistency, as there is a vritual gap beyond the end of the
+   array, and to use a well know set data structure,
+2. point down instead of up: during binary search the middle of the search range
+   can move either way. this is a hassle
+3. trailing ones instead of zeroes: comes natrually with the change in
+   direction, which I am doubting more serious every second.
+
+As elements are shifted into the gaps from below, letting gaps point up has the
+advantage that it does not require as many updates.
+
+Another change: put differences in index into the gaps. When copying sliced of
+the array, those offset remain valid, even though the indices change.
+
+How to grow? After shifting log N elements, there is no room: insert room there!
+how much though?
+
+Gap arrray has magically improved btw...
+
+### coarse grained approach
+
+I have this picture in mind where an insert triggers moving ranges across
+greater distances. Every time the insert goes to the first half, ensure space by
+splitting the tree in two and moving the second half basically by its own
+length.
+
+Well, the idea is to shift on the way down, creating gaps for the insert that is
+about to be done. Ideally, these shifts are over greater distances, to create
+many gaps at the same time. This is closer to the rotations in the red black
+tree...
+
+## 2026-05-15
+
+### bounded linear search
+
+Note how the array updates:
+
+- when inserting an element, normally shfit alle elment above it one place up
+
+- when deleting an element, either leave a gap, or move the next element in
+  position if possible
+
+Either update could leave elements in awkward positions for future updates. So
+teh best strategy might be to accept linear search, but within bounds.
+
+It may be difficult bookkeeping:
+
+- cost of binary search, to the extend that that is done
+- cost of linear search to its extend
+- cost of redisctributing elements, amortized over how often it is needed.
+
+### segment tree
+
+- Keep for each segment the least or greatest occupied index.
+
+Note: deduplicate the information. e.g. the least of the first half the the
+segment is the least of the segment, and is the least of the segment is not in
+the first half, there is nothing to store there. Also, if the segment is
+completely occupied, then the least occupied index is the least index of the
+segment. So: one array, with two types of values: 1. key-value pairs or 2.
+indices The index points up the the least element in the segment. What is the
+segment? Let's say it depends on trailing zeros: the segment is all the way up
+to the point where those zeros becomes ones. No trailing zeros: the segment can
+only point one place up. four trailing zeros? The segment has 16 = 2 ^ 4
+elements. And empty segment can be identified quickly based on their index being
+too high. This solves problems on how to update: any new insert or deleted are
+only inside a log number of segments.
+
+### more ideas
+
+Pointing to the next occupied slot creates the issue that when an insert is
+done, A big scan is needed to reset every pointer past it. Solution: Never point
+past a 'parent' node, defined as a node with more trailing zeroes.
+
+When an empty slot get taken, the number of updates is limited to the depth. In
+this case, take the newly occupied index `i` and only update `(MAX<<k) & i` as
+needed. o/c, stop if evidence of smaller elements is found.
+
+### gap array weakness?
+
+- performance is bad for insert ordered.
+- insert random: behind the others, but not by much
+- get random: same
+- remove random: terrible again
+
+I think the principle is demonstrated, but the details need massaging. One thing
+to consider is that elements can be pushed down as well as up, perhaps it would
+be logical to switch that based on the side of the array one is working on.
+
+I guess the regular redistro makes ordered insert a worst case scenario.
+Something to optimize for?
+
+1. always check the very last element first, so this special case becomes easy
+2. occasssionally insert gaps to maintain the 1/log N gap ratio.
+3. maybe use segment tree structure to get localized
+
+### more ideas
+
+It does not seem to hard to solve the ordered input problem: just append
+elements to the end, occassionally throw in a gap to maintain the ratio of 1 per
+log N. The gaps aren't even needed in this specific case. Now suppose the inputs
+go downward, though...
+
+Maybe the array should be sparser at the front end, where it has less room to
+grow. Or maybe crowd the center instead of the ends: when growing the array,
+everything cold move to the center of. With this motion in mind, inserts should
+generally move elements away from the center.
+
+Keep in mind that these cases aren't great for trees either: continuous
+rebalancing is required if elements come in this way.
+
+The issue may be that an even distribution is simply not a good idea. Instead, a
+segment reaching capacity may be considered popular, which would be a reason to
+create multiple gap at ones. this turn into higher level gaps: whole blocks in
+the array kept empty so other blocks can move in without distubing the reast of
+the array, amounting to a fractal structure fro the gaps.
+
+Ultimately, though, it is about the amortized costs. It is fine to occassionally
+move many elements, but not necessaryly desirable to create an uniform
+distrubution.
+
+-> popularity: a full section is likely popular, an empty section likely
+unpopular. Reason to make room _around_ the popular section so it can expand,
+while _contracting_ the unpopular sections, probably to the extend, that the
+popular section has a lower density than the unpopular sector--but still, within
+the thresholds tha otherwise trigger redistributions.
+
+## 2026-05-12
+
+### Linear search
+
+Linear search to solve binary search takes time, suggest that the least number
+of elements is k/log(k) as well: if part of the array gets too empty, resize and
+maybe shrink.
+
+## 2026-05-11
+
+### now the real deal
+
+Thinking of the structure as a kind of tree, The idea is now that only subtrees
+up to a certains levels can be allowed to fill up. Let the level be defined by
+the number of trailing zeros. Index 0 is special: it will always hold the least
+element.
+
+For very small collections, just keeping in order may be the best options. We've
+learned that cache lines are 64-byte, so use that as a first threshold. for
+4-byte keys, like the benchmark, this means 16 entries. At that level, 4 slots
+should be left empty. A better way so say that is that each sub array of 4
+elements should keep an empty slot.
+
+I keep mixing this up. about N/log N element should be left empty, But another
+way is the subdivide the array in log N segments, and demand that none are
+completely full.
+
+The opposite may also matter.
+
+### disjoint set array structure
+
+Idea: put a pointer to the nearest occupied cell in the empty slots. That way,
+search doesn't have to take so long.
+
 ## 2026-05-09
 
 ### red black deletion
