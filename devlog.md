@@ -1,5 +1,103 @@
 # Devlog
 
+## 2026-05-22
+
+### cost analysis
+
+It's like the dynamic array: growing has a lot of cost, bu by growing
+exponentially, the cost is amortized to be constant. So do the same thing here:
+restore the
+
+## 2026-05-21
+
+### disappointing
+
+The solution with the whole segment tree structure doesn't seem to work that
+well. There are bugs in the code that might explain something...
+
+I spend some time pondering how to do the redistribution, because the array
+can't lose elements, but i think I found the solution: traverse twice in
+opposite directions, and in both directions only move the elements that can be
+moved.
+
+### easy be effective strategies?
+
+Different idea: if no gap is found within distance log(N), just start the
+rebalance process, pushing elements as far away as needd to get under the
+threshold.
+
+### getting the number right
+
+How to get log N performance out of these trees?
+
+the trick with doubling in size and copying over is that the chance of
+triggering the expensive operation halves
+
+## 2026-05-20
+
+### refactoring the packed array
+
+The hard part is the segment tree of segments. The number of elements in each
+segment is dynamic, and has to be stored somewhere, and the number of segments
+grows, so how to do that?
+
+Without any attempt at rebalancing, the values now fall in the normal range.
+
+## 2026-05-17
+
+### letting copilot implement a packed memory array
+
+It seemed to known what it was talking about, but failed. It use linear search
+to find elements, and therefore is far slower than the other implementations. I
+also notice an unused 'occupied' field, that according to its docs helps make
+search efficient, but does no such thing. I'll commit it before trying to fix
+it.
+
+### break up
+
+Note this idea: just have arrays of keys and values unordered, using swaps like
+the arb tree, but keep pointers in a gapped array. Disadvantage: when comparing
+keys during binary search, they come from far way. Advantage: an array of
+integer is easier to work with in rust.
+
+maybe do something with rebalancing by swapping elements in an array of indices?
+
+### buddy system and fullness
+
+During the binary search, when the segment where element needs to go is full,
+look for the buddy segment and redistribute values. This means each segment has
+a counter. If the buddy segment is full, this should be detected a level up, and
+hence not happen.
+
+Here we can reintroduce the gap threshold: i.e. full means fewer then 'len / log
+len' gaps left. Similarly, on delete, redistribution may trigger if fewer than
+'len / log len' elements would remain in a segment, with the same args as
+before.
+
+Issue: two subsection may be at their thresholds, but the segment above it not,
+due to the higher tolerance! Log len or log size still works, it simply must be
+the global number, and not differ by segment.
+
+Question: does the threshold do any good? It triggers a uniform fill more
+regularly, and then? Is there any less shifting when an element is ultimately
+inserted?
+
+It could be more about chosing how densely to pack the buddy: for one side full,
+there is a unform distribution of gaps, but based on the threshold, a denser
+distribution might outsmart 'hammering' similar for deletes: if part of the
+array is getiing empty, intentionally move more or fewer elements in the way
+than a uniform distro would ask.
+
+Another criterion is more directly about balance: how different are buddies
+allowed to get? In the red black tree, the limit is the square, but that cannot
+work.
+
+A lot of shifting would happen as larger sections gradually fill up. A lot of
+searching if they gradually lose elements, though the counters make it easy to
+skip empty sections. Sp maybe a lower bound on elements is not necessary. Hense
+the thresholds: they trade repeated shift higher up with repeated shifts lower
+down.
+
 ## 2026-05-16
 
 ### reflections
@@ -59,6 +157,17 @@ Well, the idea is to shift on the way down, creating gaps for the insert that is
 about to be done. Ideally, these shifts are over greater distances, to create
 many gaps at the same time. This is closer to the rotations in the red black
 tree...
+
+Yes, something completely different: keep track of occupied element in each
+segment, so space shortages can be seen ahead of time, and move can be made.
+
+Why? think about manageing these collections in real live: would just not just
+move larger sections
+
+### shift
+
+While shifting, insert the occassional gap to keep the density below a
+threshhold. Ok, this does not help against hammering...
 
 ## 2026-05-15
 
