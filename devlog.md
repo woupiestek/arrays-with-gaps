@@ -1,5 +1,45 @@
 # Devlog
 
+## 2026-05-23
+
+### new plan for gap array
+
+Store lengths in the gaps.
+
+So I've this method for laying out trees with fixed depth in memory, including
+variations.
+
+Like the `left(i) = 2*i+1` and `right(i) = 2*i+2`. Elements would not be stored
+in order, unless you consider the layers: each layer is ordered.
+
+Why do this?
+
+Blame the success of arbtree. The fact that this silly solution beats everything
+else forces.
+
+How would it work?
+
+- do a binary search on leaf node, all of which should be inhabited
+- when the position is found, inserting there bumps some element to the next
+  layer obviously, the choice is bumping the element to the left or to the right
+  or going up on its own. A, but if the insert is not between siblings, it
+  becomes more complex! bias toward lower indices? i.e. always insert by
+  replacing the leave node bolwe it, and then insert that element a layer up.
+
+### analysis
+
+A full tree has many layers filled. pushing up may not always be possible, so
+instead, push down until it becomes an option. this way some element ends up at
+the end.
+
+combine with scew binary? like: leave out the levels
+
+### parallel to binary numbers?
+
+like keep each level at length 2^n?
+
+or with scew binary numbers at 2^n-1?
+
 ## 2026-05-22
 
 ### cost analysis

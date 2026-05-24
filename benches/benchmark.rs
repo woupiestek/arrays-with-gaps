@@ -1,6 +1,6 @@
 use arrays_with_gaps::{
     Map, RedBlackTree, arb_tree::ArrayRedBlackTree, gap_array_1::GapArray1,
-    packed_array::PackedArray, soarb_tree::SOARBTree,
+    packed_array::PackedArray, packed_array_2::PackedArray2, soarb_tree::SOARBTree,
 };
 use criterion::{Criterion, black_box, criterion_group, criterion_main};
 
@@ -92,34 +92,31 @@ impl TestCase {
 }
 
 fn criterion_benchmarks(c: &mut Criterion) {
-    let rb_tree = TestCase::new("rb_tree".to_string(), || Box::new(RedBlackTree::new()));
-    let arb_tree = TestCase::new(
-        "arb_tree".to_string(),
-        || Box::new(ArrayRedBlackTree::new()),
-    );
-    let soarb_tree = TestCase::new("soarb_tree".to_string(), || Box::new(SOARBTree::new()));
-    let gap_array_1 = TestCase::new("gap_array_1".to_string(), || Box::new(GapArray1::new()));
-    let packed_array = TestCase::new("packed_array".to_string(), || Box::new(PackedArray::new()));
-    rb_tree.bench_insert_ordered(c);
-    arb_tree.bench_insert_ordered(c);
-    soarb_tree.bench_insert_ordered(c);
-    gap_array_1.bench_insert_ordered(c);
-    packed_array.bench_insert_ordered(c);
-    rb_tree.bench_insert_random(c);
-    arb_tree.bench_insert_random(c);
-    soarb_tree.bench_insert_random(c);
-    gap_array_1.bench_insert_random(c);
-    packed_array.bench_insert_random(c);
-    rb_tree.bench_get_random(c);
-    arb_tree.bench_get_random(c);
-    soarb_tree.bench_get_random(c);
-    gap_array_1.bench_get_random(c);
-    packed_array.bench_get_random(c);
-    rb_tree.bench_remove_random(c);
-    arb_tree.bench_remove_random(c);
-    soarb_tree.bench_remove_random(c);
-    gap_array_1.bench_remove_random(c);
-    packed_array.bench_remove_random(c);
+    let test_cases = vec![
+        TestCase::new("rb_tree".to_string(), || Box::new(RedBlackTree::new())),
+        TestCase::new(
+            "arb_tree".to_string(),
+            || Box::new(ArrayRedBlackTree::new()),
+        ),
+        TestCase::new("soarb_tree".to_string(), || Box::new(SOARBTree::new())),
+        TestCase::new("gap_array_1".to_string(), || Box::new(GapArray1::new())),
+        TestCase::new("packed_array".to_string(), || Box::new(PackedArray::new())),
+        TestCase::new("packed_array_2".to_string(), || {
+            Box::new(PackedArray2::new())
+        }),
+    ];
+    for tc in &test_cases {
+        tc.bench_insert_ordered(c);
+    }
+    for tc in &test_cases {
+        tc.bench_insert_random(c);
+    }
+    for tc in &test_cases {
+        tc.bench_get_random(c);
+    }
+    for tc in &test_cases {
+        tc.bench_remove_random(c);
+    }
 }
 
 criterion_group!(benches, criterion_benchmarks);

@@ -2,6 +2,20 @@ use std::mem;
 
 use crate::Map;
 
+// just screw with the layout?
+//
+// more original idea
+//
+// idea: only one level of the tree have optional elements
+// probably the leafs, below that, everythign must be filled.
+// maybe 2^k-1 non leave nodes for fast binary search
+// maybe 2^k optional leave nodes
+// and then...
+// regular resizing, for example
+// - over 70% of leafs filled? grow 30%
+// - less than 30% of leafs filled? shrink 23%
+// note: removal now requires taking elements out of the leafs
+
 enum Node<K, V> {
     Pair { key: K, value: V },
     Gap { next: usize }, // next > 0...

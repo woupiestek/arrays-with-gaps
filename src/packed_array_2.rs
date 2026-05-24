@@ -1,135 +1,18 @@
 use crate::Map;
 use std::cmp::Ordering;
 
-// keep track of density of segments used by the tree,
-// densityd are tracked as x/120, because is it the multiple of 8 less than half of 256
-struct SegmentTree {
-    len: usize,
-    density: Box<[u8]>,
-}
-
-impl SegmentTree {
-    const FULL: u8 = 120;
-
-    fn new() -> Self {
-        Self {
-            len: 4,
-            density: vec![0; 7].into_boxed_slice(),
-        }
-    }
-
-    fn _grow(&mut self, new_len: usize) {
-        // I don't want to try something else.
-        assert!(new_len.is_power_of_two());
-        let mut new_density = vec![0; new_len * 2 - 1].into_boxed_slice();
-        let mut len = self.len;
-        let mut offset = 0;
-        let mut new_offset = 0;
-        loop {
-            new_density[new_offset..(new_offset + len)]
-                .copy_from_slice(&self.density[offset..(offset + len)]);
-            len /= 2;
-            if len == 0 {
-                break;
-            }
-            offset = offset / 2 + self.len;
-            new_offset = new_offset / 2 + new_len;
-        }
-        self.len = new_len;
-        self.density = new_density;
-    }
-
-    // set range...
-    fn set(&mut self, index: usize, value: u8) {
-        assert!(
-            value <= Self::FULL,
-            "value {} out of range at index {}",
-            value,
-            index
-        );
-        if index >= self.len {
-            self._grow((index + 1).next_power_of_two());
-        }
-        self.density[index] = value;
-        let mut previous = index;
-        loop {
-            let current = previous / 2 + self.len;
-            if current > (self.len - 1) * 2 {
-                return;
-            }
-            self.density[current] = (self.density[previous] + self.density[previous ^ 1] + 1) / 2;
-            previous = current
-        }
-    }
-
-    fn incr(&mut self, index: usize) -> u8 {
-        let value = self.get(index) + 15;
-        self.set(index, value);
-        value
-    }
-
-    fn decr(&mut self, index: usize) -> u8 {
-        let value = self.get(index) - 15;
-        self.set(index, value);
-        value
-    }
-
-    fn get(&self, index: usize) -> u8 {
-        if index >= self.len {
-            0
-        } else {
-            self.density[index]
-        }
-    }
-
-    // 2 ** power sized range needed to get everything under threshold.
-    fn power_below(&self, index: usize, threshold: u8) -> (u8, u8) {
-        let mut power = 0;
-        let mut i = index;
-        loop {
-            let density = self.density[i];
-            if self.density[i] <= threshold {
-                return (power, density);
-            }
-            power += 1;
-            i = i / 2 + self.len;
-            if i > (self.len - 1) * 2 {
-                return (power, density / 2);
-            }
-        }
-    }
-
-    // 2 ** power sized range needed to get over the threshold, if possible!
-    fn power_above(&self, index: usize, threshold: u8) -> Option<(u8, u8)> {
-        let mut power = 0;
-        let mut i = index;
-        loop {
-            let density = self.density[i];
-            if self.density[i] >= threshold {
-                return Some((power, density));
-            }
-            power += 1;
-            i = i / 2 + self.len;
-            if i > (self.len - 1) * 2 {
-                return None;
-            }
-        }
-    }
-}
-
-// let's debug the part that should function without rebalancing.
-pub struct PackedArray<K, V> {
+// no bookkeeping of densities,
+// just try to
+pub struct PackedArray2<K, V> {
     // Sorted vector of (key, value) pairs with gaps (Some) and empty slots (None)
     data: Vec<Option<(K, V)>>,
-    segments: SegmentTree,
     _len: usize,
 }
 
-impl<K: Ord, V> PackedArray<K, V> {
+impl<K: Ord, V> PackedArray2<K, V> {
     pub fn new() -> Self {
         Self {
             data: Vec::new(),
-            segments: SegmentTree::new(),
             _len: 0,
         }
     }
@@ -142,14 +25,16 @@ impl<K: Ord, V> PackedArray<K, V> {
             for i in mid..end {
                 if let Some((k, _)) = &self.data[i] {
                     match &key.cmp(k) {
-                        Ordering::Less => {}
+                        Ordering::Less => {
+                            end = mid;
+                            continue 'outer;
+                        }
                         Ordering::Equal => return (true, i),
                         Ordering::Greater => {
                             start = i + 1;
                             continue 'outer;
                         }
                     }
-                    break;
                 }
             }
             // go left
@@ -158,37 +43,40 @@ impl<K: Ord, V> PackedArray<K, V> {
         (false, start)
     }
 
-    fn fix_insert(&mut self, index: usize) {
+    fn fix_insert(&mut self, from: usize, to: usize) {
         self._len += 1;
-        self.segments.incr(index / 8);
-        if self._len <= 1 {
+        if self._len <= 8 {
             return;
         }
-        if self.segments.get(index / 8) < SegmentTree::FULL {
-            return;
+        let len = (to - from + 1).next_power_of_two();
+        if len > 8 {
+            let start = !(len - 1) & to;
+            self.balance(start, start + len)
         }
-        let (power, density) = self.segments.power_below(index / 8, 105);
-        let len = 1 << (power + 3);
-        let start = !(len - 1) & index;
-        self.balance(density, start, start + len);
     }
 
     fn fix_remove(&mut self, index: usize) {
         self._len -= 1;
-        self.segments.decr(index / 8);
-        if self.segments.get(index / 8) > 60 || self._len < 4 {
+        if self._len * 4 < self.data.len() {
+            self.condense();
             return;
         }
-        if let Some((power, density)) = self.segments.power_above(index / 8, 52) {
-            let len = 1 << (power + 3);
+        let mut j = index + 1;
+        while j < self.data.len() && self.data[j].is_none() {
+            j += 1;
+        }
+        if j >= self.data.len() {
+            self.data.truncate(index);
+            return;
+        }
+        let len = (j - index).next_power_of_two();
+        if len > 8 {
             let start = !(len - 1) & index;
-            self.balance(density, start, start + len);
-        } else {
-            self.condense();
+            self.balance(start, start + len)
         }
     }
 
-    fn balance(&mut self, density: u8, start: usize, end: usize) {
+    fn balance(&mut self, start: usize, end: usize) {
         if end >= self.data.len() {
             self.data.resize_with(end + 1, || None);
         }
@@ -199,12 +87,9 @@ impl<K: Ord, V> PackedArray<K, V> {
             if self.data[source].is_none() {
                 continue;
             }
-            let target = start + count * 120 / density as usize;
+            let target = start + count * self.data.len() / self._len;
             if source > target {
-                // assert!(self.data[target].is_none());
                 self.data[target] = self.data[source].take();
-                self.segments.decr(source / 8);
-                self.segments.incr(target / 8);
             }
             count += 1;
         }
@@ -217,12 +102,9 @@ impl<K: Ord, V> PackedArray<K, V> {
             if self.data[source].is_none() {
                 continue;
             }
-            let target = start + count * 120 / density as usize;
+            let target = start + count * self.data.len() / self._len;
             if source < target {
-                // assert!(self.data[target].is_none());
                 self.data[target] = self.data[source].take();
-                self.segments.decr(source / 8);
-                self.segments.incr(target / 8);
             }
         }
         assert_eq!(count, 0);
@@ -238,10 +120,7 @@ impl<K: Ord, V> PackedArray<K, V> {
             }
             let target = count * new_len / self._len;
             if source > target {
-                // assert!(self.data[target].is_none());
                 self.data[target] = self.data[source].take();
-                self.segments.decr(source / 8);
-                self.segments.incr(target / 8);
             }
             count += 1;
         }
@@ -250,7 +129,7 @@ impl<K: Ord, V> PackedArray<K, V> {
     }
 }
 
-impl<K: Ord, V> Map<K, V> for PackedArray<K, V> {
+impl<K: Ord, V> Map<K, V> for PackedArray2<K, V> {
     fn len(&self) -> usize {
         self._len
     }
@@ -283,13 +162,13 @@ impl<K: Ord, V> Map<K, V> for PackedArray<K, V> {
             match self.data[i].replace(pair) {
                 Some(p) => pair = p,
                 None => {
-                    self.fix_insert(i);
+                    self.fix_insert(index, i);
                     return None;
                 }
             }
         }
         self.data.push(Some(pair));
-        self.fix_insert(self.data.len() - 1);
+        self.fix_insert(index, self.data.len() - 1);
         return None;
     }
 
@@ -306,11 +185,11 @@ impl<K: Ord, V> Map<K, V> for PackedArray<K, V> {
 
 #[cfg(test)]
 mod tests {
-    use super::{Map, PackedArray};
+    use super::{Map, PackedArray2};
 
     #[test]
     fn test_operations_work() {
-        let mut array = PackedArray::new();
+        let mut array = PackedArray2::new();
         assert!(array.is_empty());
 
         assert_eq!(array.insert(3, "three"), None);
@@ -339,10 +218,9 @@ mod tests {
     #[test]
     fn test_add_many() {
         let keys: Vec<i32> = (0..500 as i32).collect::<Vec<i32>>().repeat(2);
-        let mut array = PackedArray::new();
+        let mut array = PackedArray2::new();
         for key in keys {
             array.insert(key, key);
-            println!("density: {:?}", array.segments.density);
         }
         assert_eq!(array.len(), 500);
     }
@@ -350,11 +228,9 @@ mod tests {
     #[test]
     fn test_add_many_reverse() {
         let keys: Vec<i32> = (0..500 as i32).rev().collect::<Vec<i32>>().repeat(2);
-        let mut array = PackedArray::new();
+        let mut array = PackedArray2::new();
         for key in keys {
             array.insert(key, key);
-
-            println!("density: {:?}", array.segments.density);
         }
         assert_eq!(array.len(), 500);
     }
@@ -364,18 +240,18 @@ mod tests {
         let keys: Vec<i32> = (0..64 as i32)
             .map(|i| i.reverse_bits())
             .collect::<Vec<i32>>();
-        let mut array = PackedArray::new();
+        let mut array = PackedArray2::new();
         for &key in &keys {
             array.insert(key, key);
         }
-        for key in &keys {
+        for &key in &keys {
             log_array(&array);
-            assert!(array.remove(key).is_some());
+            assert_eq!(array.remove(&key), Some(key));
         }
         assert_eq!(array.len(), 0);
     }
 
-    fn log_array<K, V>(array: &PackedArray<K, V>) {
+    fn log_array<K, V>(array: &PackedArray2<K, V>) {
         println!(
             "data: {}",
             (0..array.data.len())
@@ -386,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_ordering() {
-        let mut array = PackedArray::new();
+        let mut array = PackedArray2::new();
         let keys = vec![5, 2, 8, 1, 9, 3];
         for &key in &keys {
             array.insert(key, key);
