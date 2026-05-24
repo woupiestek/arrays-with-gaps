@@ -1,5 +1,61 @@
 # Devlog
 
+## 2026-05-24
+
+More cleverness?
+
+Ok, the remove and leave gap is pretty unavoidable...
+
+### the two vec solution
+
+- node is (K,V,usize)
+- between half is kept sorted in one array, and the rest unsorted in the other
+- the usize is used as pointer: both point to a buddy in the other array, though
+  the buddy is optional for the longer array.
+- so an insert in principle ends up inserted at the end, with a pointer to its
+  proper position in the list.
+- there is a pointer the other way, for deletes. now this is interesting: can
+  insert push more than one? what if there is nothing there when a delete must
+  happen?
+- the get starts with the binary search, but may have to linearly search the
+  rest...
+
+A limitation of the Map trait is that get must not change the state of the tree.
+Perhaps that should be relaxed: It may help to optimize the structure will
+searching the data structure.
+
+In particular: lazy inserts. Just add inserts to a list to search linearly, When
+that list gets long, sort and merge it.
+
+How'd ya do delete then?
+
+The delete has to give up ownership, also limits the options: just copying data
+and leaving the key in place is not allowed.
+
+### some details
+
+Treat the optionals positions as even, and the required positions as even.
+
+Growth: start at len+1 and find the element that should go there--this is the
+element at ca 76% of that index. To replace this element, another is needed,
+again as a percentage of that index, and so on. Eventually, the point is reached
+where the element may stay in its place. It feels a bit risky: what ensures that
+the main array remains properly ordered?
+
+### idea
+
+To grow, just fill or empty the main array up to capacity, then merge. The issue
+is always that if you move stuff into the main array, the stuff wedged in
+between is out of place. To shrink, ...
+
+### binary numbers and such
+
+- have a bunch of arrays of length 2^n
+- to get, sadly, all have to be binary searched.. unless there is a way to
+  relate the contents of these arrays
+
+I am losing interest in this project. Arbtree shockingly seems the answer.
+
 ## 2026-05-23
 
 ### new plan for gap array
