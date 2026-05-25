@@ -46,6 +46,19 @@ impl TestCase {
         });
     }
 
+    fn bench_insert_reverse_ordered(&self, c: &mut Criterion) {
+        let keys: Vec<i32> = (0..TEST_SIZE as i32).rev().collect::<Vec<i32>>().repeat(2);
+        c.bench_function(&format!("{} insert reverse ordered", self.name), |b| {
+            b.iter(|| {
+                let mut tree = (self.factory)();
+                for &key in &keys {
+                    tree.insert(black_box(key), black_box(key));
+                }
+                black_box(tree);
+            })
+        });
+    }
+
     fn bench_insert_random(&self, c: &mut Criterion) {
         let keys = make_shuffle(TEST_SIZE);
         c.bench_function(&format!("{} insert random", self.name), |b| {
@@ -107,6 +120,9 @@ fn criterion_benchmarks(c: &mut Criterion) {
     ];
     for tc in &test_cases {
         tc.bench_insert_ordered(c);
+    }
+    for tc in &test_cases {
+        tc.bench_insert_reverse_ordered(c);
     }
     for tc in &test_cases {
         tc.bench_insert_random(c);

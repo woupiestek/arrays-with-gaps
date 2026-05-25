@@ -43,66 +43,98 @@ impl<K: Ord, V> PackedArray2<K, V> {
         (false, start)
     }
 
-    fn fix_insert(&mut self, from: usize, to: usize) {
+    fn fix_insert(&mut self, index: usize) {
         self._len += 1;
-        if self._len <= 8 {
+        if self._len * 4 > self.data.len() * 3 {
+            self.reset();
             return;
         }
-        let len = (to - from + 1).next_power_of_two();
-        if len > 8 {
-            let start = !(len - 1) & to;
-            self.balance(start, start + len)
+        let mut len = 4;
+        let mut start = index & !3; // zero out bottom two bits
+        let mut some_count = 1;
+        for i in 0..len {
+            if self.data[i + start].is_some() {
+                some_count += 1;
+            }
         }
+        while some_count * 4 > len * 3 {
+            let sibling = start ^ len;
+            len *= 2; // could use a shift instead, for nerd cred.
+            for i in 0..len {
+                if self.data[sibling + i].is_some() {
+                    some_count += 1;
+                }
+            }
+            if sibling < start {
+                start = sibling
+            }
+        }
+        self.balance(start, start + len, some_count);
     }
 
     fn fix_remove(&mut self, index: usize) {
         self._len -= 1;
+
         if self._len * 4 < self.data.len() {
-            self.condense();
+            self.reset();
+            return;
+        } else if self._len <= 8 {
             return;
         }
-        let mut j = index + 1;
-        while j < self.data.len() && self.data[j].is_none() {
-            j += 1;
+        // find an interval with density over 1/4
+        let mut len = 4;
+        let mut start = index & !3; // zero out bottom two bits
+        let mut some_count = 0;
+        for i in 0..len.min(self.data.len() - start) {
+            if self.data[i + start].is_some() {
+                some_count += 1;
+            }
         }
-        if j >= self.data.len() {
-            self.data.truncate(index);
-            return;
+        while some_count * 4 < len {
+            let sibling = start ^ len;
+            for i in 0..len.min(self.data.len() - sibling) {
+                if self.data[sibling + i].is_some() {
+                    some_count += 1;
+                }
+            }
+            len *= 2; // could use a shift instead, for nerd cred.
+            if sibling < start {
+                start = sibling
+            }
         }
-        let len = (j - index).next_power_of_two();
         if len > 8 {
-            let start = !(len - 1) & index;
-            self.balance(start, start + len)
+            let end = start + len;
+            if self.data.len() < end {
+                self.data.resize_with(end, || None);
+            }
+
+            self.balance(start, end, some_count);
         }
     }
 
-    fn balance(&mut self, start: usize, end: usize) {
-        if end >= self.data.len() {
-            self.data.resize_with(end + 1, || None);
-        }
-        // just do it twice in both directions!
+    fn balance(&mut self, start: usize, end: usize, some_count: usize) {
         let mut count = 0;
         // first round take care of elements that come to late
         for source in start..end {
             if self.data[source].is_none() {
                 continue;
             }
-            let target = start + count * self.data.len() / self._len;
-            if source > target {
+            let target = start + (end - start) * count / some_count;
+            count += 1;
+            if target < source {
                 self.data[target] = self.data[source].take();
             }
-            count += 1;
         }
         // second takes care of those to come too soon
         for source in (start..end).rev() {
             if count == 0 {
                 return;
             }
-            count -= 1;
             if self.data[source].is_none() {
                 continue;
             }
-            let target = start + count * self.data.len() / self._len;
+            count -= 1;
+            let target = start + (end - start) * count / some_count;
             if source < target {
                 self.data[target] = self.data[source].take();
             }
@@ -110,15 +142,15 @@ impl<K: Ord, V> PackedArray2<K, V> {
         assert_eq!(count, 0);
     }
 
-    fn condense(&mut self) {
+    fn reset(&mut self) {
         let mut count = 0;
         // first round takes care of elements that come to late
-        let new_len = self.data.len() / 2;
+        let new_len = self._len * 2;
         for source in 0..self.data.len() {
             if self.data[source].is_none() {
                 continue;
             }
-            let target = count * new_len / self._len;
+            let target = count * 2;
             if source > target {
                 self.data[target] = self.data[source].take();
             }
@@ -162,13 +194,13 @@ impl<K: Ord, V> Map<K, V> for PackedArray2<K, V> {
             match self.data[i].replace(pair) {
                 Some(p) => pair = p,
                 None => {
-                    self.fix_insert(index, i);
+                    self.fix_insert(i);
                     return None;
                 }
             }
         }
         self.data.push(Some(pair));
-        self.fix_insert(index, self.data.len() - 1);
+        self.fix_insert(self.data.len() - 1);
         return None;
     }
 
@@ -220,6 +252,7 @@ mod tests {
         let keys: Vec<i32> = (0..500 as i32).collect::<Vec<i32>>().repeat(2);
         let mut array = PackedArray2::new();
         for key in keys {
+            log_array(&array);
             array.insert(key, key);
         }
         assert_eq!(array.len(), 500);
@@ -230,6 +263,7 @@ mod tests {
         let keys: Vec<i32> = (0..500 as i32).rev().collect::<Vec<i32>>().repeat(2);
         let mut array = PackedArray2::new();
         for key in keys {
+            log_array(&array);
             array.insert(key, key);
         }
         assert_eq!(array.len(), 500);
@@ -242,7 +276,8 @@ mod tests {
             .collect::<Vec<i32>>();
         let mut array = PackedArray2::new();
         for &key in &keys {
-            array.insert(key, key);
+            log_array(&array);
+            assert_eq!(array.insert(key, key), None);
         }
         for &key in &keys {
             log_array(&array);
@@ -265,7 +300,8 @@ mod tests {
         let mut array = PackedArray2::new();
         let keys = vec![5, 2, 8, 1, 9, 3];
         for &key in &keys {
-            array.insert(key, key);
+            log_array(&array);
+            assert_eq!(array.insert(key, key), None);
         }
         assert_eq!(array.len(), keys.len());
         let mut output = Vec::new();

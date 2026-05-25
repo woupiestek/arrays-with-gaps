@@ -142,14 +142,16 @@ impl<K: Ord, V> PackedArray<K, V> {
             for i in mid..end {
                 if let Some((k, _)) = &self.data[i] {
                     match &key.cmp(k) {
-                        Ordering::Less => {}
+                        Ordering::Less => {
+                            end = mid;
+                            continue 'outer;
+                        }
                         Ordering::Equal => return (true, i),
                         Ordering::Greater => {
                             start = i + 1;
                             continue 'outer;
                         }
                     }
-                    break;
                 }
             }
             // go left
@@ -230,8 +232,7 @@ impl<K: Ord, V> PackedArray<K, V> {
 
     fn condense(&mut self) {
         let mut count = 0;
-        // first round takes care of elements that come to late
-        let new_len = self.data.len() / 2;
+        let new_len = (self._len + self._len / 4 + 1).next_power_of_two();
         for source in 0..self.data.len() {
             if self.data[source].is_none() {
                 continue;
